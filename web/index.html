@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WB-Shortener</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            background: #f4f4f9;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        input[type=text], input[type=url] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            background: #007BFF;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: #f9f9f9;
+            word-wrap: break-word;
+        }
+        .error {
+            border: 1px solid #dc3545 !important;
+            background: #f8d7da !important;
+            color: #721c24;
+        }
+        a {
+            color: #007BFF;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .copy-btn {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 32px;
+            padding: 0 12px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .copy-btn:hover {
+            background: #218838;
+        }
+        .card {
+            padding: 10px 15px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .stat-title {
+            font-weight: bold;
+            margin-top: 10px;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+<h1>WB-Shortener</h1>
+
+<div class="container">
+    <h2>Создать короткую ссылку</h2>
+    <div class="form-group">
+        <label for="originalUrl">Оригинальный URL:</label>
+        <input type="url" id="originalUrl" placeholder="https://example.com" required>
+    </div>
+    <div class="form-group">
+        <label for="customAlias">Кастомная ссылка (необязательно):</label>
+        <input type="text" id="customAlias" placeholder="my-link">
+    </div>
+    <button onclick="shortenUrl()">Сократить</button>
+    <div id="shortenResult" class="result" style="display:none;"></div>
+</div>
+
+<div class="container">
+    <h2>Получить аналитику</h2>
+    <div class="form-group">
+        <label for="shortUrl">Короткая ссылка или алиас:</label>
+        <input type="text" id="shortUrl" placeholder="https://example.com/s/abc123" required>
+    </div>
+    <button onclick="getAnalytics()">Показать аналитику</button>
+    <div id="analyticsResult" class="result" style="display:none;"></div>
+</div>
+
+<script>
+    const SERVER = "http://localhost:8080";
+
+    async function shortenUrl() {
+        const url = document.getElementById("originalUrl").value.trim();
+        const alias = document.getElementById("customAlias").value.trim();
+        const resultDiv = document.getElementById("shortenResult");
+
+        resultDiv.style.display = "block";
+        resultDiv.classList.remove("error");
+        resultDiv.innerHTML = "Сокращение...";
+
+        try {
+            const response = await fetch(`${SERVER}/shorten`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url: url, custom_alias: alias || undefined })
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                const shortUrl = `${SERVER}/s/${data.result.short_url}`;
+                resultDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+                        <strong>Короткая ссылка:</strong>
+                        <a id="shortLink" href="${shortUrl}" target="_blank" style="word-break: break-all; flex: 1;">${shortUrl}</a>
+                        <button class="copy-btn" onclick="copyShortLink('${shortUrl}')">Скопировать</button>
+                    </div>
+                    <div>
+                        <strong>Оригинальный URL:</strong>
+                        <a href="${data.result.original_url}" target="_blank" style="word-break: break-all; display: inline-block; margin-top: 5px;">${data.result.original_url}</a>
+                    </div>
+                `;
+
+                document.getElementById("shortUrl").value = shortUrl;
+            } else {
+                resultDiv.classList.add("error");
+                resultDiv.innerHTML = `Ошибка: ${data.error}`;
+            }
+        } catch {
+            resultDiv.classList.add("error");
+            resultDiv.innerHTML = "Произошла ошибка при сокращении ссылки";
+        }
+    }
+
+    function copyShortLink(url) {
+        navigator.clipboard.writeText(url).then(() => alert("Ссылка скопирована в буфер обмена"));
+    }
+
+    async function getAnalytics() {
+        const input = document.getElementById("shortUrl").value.trim();
+        if (!input) return;
+
+        const alias = input.includes("/s/") ? input.split("/s/").pop() : input;
+        const analyticsDiv = document.getElementById("analyticsResult");
+        analyticsDiv.style.display = "block";
+        analyticsDiv.classList.remove("error");
+        analyticsDiv.innerHTML = "Загрузка аналитики...";
+
+        try {
+            const response = await fetch(`${SERVER}/analytics/${alias}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                const r = data.result;
+                let html = `<div class="card"><strong>Оригинальный URL:</strong> <a href="${r.original_url}" target="_blank">${r.original_url}</a></div>`;
+                html += `<div class="card"><strong>Короткая ссылка:</strong> <a href="${SERVER}/s/${r.short_url}" target="_blank">${SERVER}/s/${r.short_url}</a></div>`;
+                html += `<div class="card"><strong>Всего переходов:</strong> ${r.total_clicks}</div>`;
+
+                html += `<div class="card"><div class="stat-title">Статистика по дням:</div>`;
+                if (r.daily_stats?.length) {
+                    r.daily_stats.forEach(s => {
+                        html += `${s.date}: ${s.clicks} переходов<br>`;
+                    });
+                } else {
+                    html += "Нет данных";
+                }
+                html += `</div>`;
+
+                html += `<div class="card"><div class="stat-title">Статистика по месяцам:</div>`;
+                if (r.monthly_stats?.length) {
+                    r.monthly_stats.forEach(s => {
+                        html += `${s.month}: ${s.clicks} переходов<br>`;
+                    });
+                } else {
+                    html += "Нет данных";
+                }
+                html += `</div>`;
+
+                html += `<div class="card"><div class="stat-title">Статистика по User-Agent:</div>`;
+                if (r.user_agent_stats?.length) {
+                    r.user_agent_stats.forEach(u => {
+                        const ua = u.user_agent.length > 50 ? u.user_agent.substring(0,50) + "..." : u.user_agent;
+                        html += `${ua}: ${u.clicks} переходов<br>`;
+                    });
+                } else {
+                    html += "Нет данных";
+                }
+                html += `</div>`;
+
+                analyticsDiv.innerHTML = html;
+            } else {
+                analyticsDiv.classList.add("error");
+                analyticsDiv.innerHTML = `Ошибка: ${data.error}`;
+            }
+        } catch {
+            analyticsDiv.classList.add("error");
+            analyticsDiv.innerHTML = "Ошибка при загрузке аналитики";
+        }
+    }
+</script>
+</body>
+</html>
